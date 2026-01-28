@@ -53,7 +53,6 @@ export class NcmClassificacaoService {
     async checaStatus(token: string, processId: string): Promise<string[]> {
         const MAX_TENTATIVAS = 10;
         const INTERVALO_MS = 8000;
-
         let tentativas = 0;
 
         while (tentativas < MAX_TENTATIVAS) {
@@ -71,24 +70,20 @@ export class NcmClassificacaoService {
             }
 
             const json = await response.json();
-            
             const processo = json.results && json.results[0];
 
             if (!processo) {
-                const errorBody = await response.text();
-                throw new Error(`Processo não encontrado no retorno da API.- ${errorBody}`);
+                throw new Error(`Processo não encontrado no retorno da API.`);
             }
 
             const statusGeral = processo.status;
-
             console.log(`Tentativa ${tentativas + 1}: Status atual é ${statusGeral}`);
 
             if (statusGeral === 'FINISHED') {                
                 if (!processo.final_result) return [];                
                 const listaResultados = JSON.parse(processo.final_result);
-                return listaResultados.map((item: any) => ({
-                    ncm: item.NCM || "" 
-                }));
+                
+                return listaResultados.map((item: any) => item.NCM || "");
             }
 
             if (['FAILED', 'INVALID_FILE', 'ERROR'].includes(statusGeral)) {
@@ -97,20 +92,20 @@ export class NcmClassificacaoService {
 
             tentativas++;
             await this.sleep(INTERVALO_MS);
+        }
+        throw new Error('Timeout: O processo demorou demais para finalizar.');
     }
 
-        throw new Error('Timeout: O processo demorou demais para finalizar.');
-}
-
-    async obterNcmPorDescricao(descricao: string): Promise<string[]> {
+    async obterNcmPorDescricao(descricao: string): Promise<{ process_id: string, ncm: string[] }> {
         try {
             const token = await this.login();
             const processId = await this.novoProcesso(token, descricao);            
             const ncms = await this.checaStatus(token, processId);
 
-            console.log('O processId é: ', processId);
-            console.log('NCMs obtidos com sucesso:', ncms);
-            return ncms;
+            return {
+                process_id: processId,
+                ncm: ncms
+            };
 
         } catch (error) {
             console.error('Erro no fluxo principal do BFF:', error);
