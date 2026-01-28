@@ -1,4 +1,4 @@
-class NcmClassificacaoService {
+export class NcmClassificacaoService {
 
     async login(): Promise<string> {
         const response = await fetch(`${process.env.API_URL}/login`, {
@@ -91,6 +91,9 @@ class NcmClassificacaoService {
     }
 
     async obterNcmPorDescricao(descricao: string): Promise<number> {
+
+        const STATUS_FINAIS = ['FINISHED', 'FAILED', 'INVALID_FILE', 'ERROR']
+
         try {
             const token = await this.login();
             const processId = await this.novoProcesso(token, descricao);
