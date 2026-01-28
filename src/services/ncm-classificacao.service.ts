@@ -12,7 +12,8 @@ export class NcmClassificacaoService {
         });
 
         if (!response.ok) {
-            throw new Error(`Falha ao logar na API: ${response.statusText}`);
+            const errorBody = await response.text();
+            throw new Error(`Falha ao logar na API: ${response.status} = ${errorBody}`);
         }
 
         const json = await response.json();
@@ -24,7 +25,7 @@ export class NcmClassificacaoService {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Authorizer ${token}`
+                'authorizer': token
             },
             body: JSON.stringify({
                 "provider": "gpt",
@@ -37,71 +38,82 @@ export class NcmClassificacaoService {
         });
 
         if (!response.ok) {
+            const errorBody = await response.text();
             throw new Error(`Falha ao criar processo na API: ${response.statusText}`);
         }
 
         const json = await response.json();
-        return json.id as string;
+        return json.process_id as string;
     }
 
     async sleep(milissegundos: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, milissegundos));
     }
 
-    async checaStatus(token: string, processId: string): Promise<string> {
-
+    async checaStatus(token: string, processId: string): Promise<string[]> {
         const MAX_TENTATIVAS = 10;
-        const INTERVALO_MS = 6000; 
+        const INTERVALO_MS = 8000;
 
         let tentativas = 0;
-        let statusProcesso = '';
 
         while (tentativas < MAX_TENTATIVAS) {
             const response = await fetch(`${process.env.API_URL}/processes?process_id=${processId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Authorizer ${token}`
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'authorizer': token
+                }
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`Erro na comunicação com a API: ${response.status} - ${errorBody}`);
             }
-          }
-       );
 
-       if(!response.ok) {
-            throw new Error (`Falha ao checar status do processo: ${response.statusText}`);
-       } 
+            const json = await response.json();
+            
+            const processo = json.results && json.results[0];
 
-        const json = await response.json();
-        statusProcesso = json.results.status;
+            if (!processo) {
+                const errorBody = await response.text();
+                throw new Error(`Processo não encontrado no retorno da API.- ${errorBody}`);
+            }
 
-        if (statusProcesso === 'FINISHED' || statusProcesso === 'FAILED') {
-            return statusProcesso;
-        }
+            const statusGeral = processo.status;
 
-        tentativas++;
-        await this.sleep(INTERVALO_MS);
-        }
-    
-        throw new Error('Timeout: processo não finalizou dentro do tempo esperado');
+            console.log(`Tentativa ${tentativas + 1}: Status atual é ${statusGeral}`);
+
+            if (statusGeral === 'FINISHED') {                
+                if (!processo.final_result) return [];                
+                const listaResultados = JSON.parse(processo.final_result);
+                return listaResultados.map((item: any) => ({
+                    ncm: item.NCM || "" 
+                }));
+            }
+
+            if (['FAILED', 'INVALID_FILE', 'ERROR'].includes(statusGeral)) {
+                throw new Error(`O processo falhou com o status: ${statusGeral}`);
+            }
+
+            tentativas++;
+            await this.sleep(INTERVALO_MS);
     }
 
-    async obterNcmPorDescricao(descricao: string): Promise<number> {
+        throw new Error('Timeout: O processo demorou demais para finalizar.');
+}
 
-        const STATUS_FINAIS = ['FINISHED', 'FAILED', 'INVALID_FILE', 'ERROR']
-
+    async obterNcmPorDescricao(descricao: string): Promise<string[]> {
         try {
             const token = await this.login();
-            const processId = await this.novoProcesso(token, descricao);
-            const status = await this.checaStatus(token, processId);
+            const processId = await this.novoProcesso(token, descricao);            
+            const ncms = await this.checaStatus(token, processId);
 
-            if (status === 'FINISHED') {
-                console.log('Processo finalizado com sucesso.');
-                return 0;
-            } else {
-                console.error('Processo falhou.');
-                return 2;
-            }
+            console.log('O processId é: ', processId);
+            console.log('NCMs obtidos com sucesso:', ncms);
+            return ncms;
+
         } catch (error) {
-            console.error('Erro ao obter NCM por descrição:', error);
+            console.error('Erro no fluxo principal do BFF:', error);
             throw error;
         }
     }

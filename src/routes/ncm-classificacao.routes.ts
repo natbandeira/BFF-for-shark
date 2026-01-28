@@ -17,7 +17,7 @@ router.post('/ncm-classificacao', async (req: Request, res: Response) => {
 
     } catch (error: any) {
         return res.status(502).json({
-            error: 'Erro ao comunicar com a API externa',
+            error: 'Falha ao comunicar com a API externa',
             details: error.message
         })
     }

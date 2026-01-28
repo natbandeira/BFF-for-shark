@@ -1,2 +1,8 @@
 .env
 node_modules/
+
+# Compilação do TypeScript
+dist/
+
+# Configurações do VS Code
+.vscode/
