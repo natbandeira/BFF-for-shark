@@ -3,9 +3,7 @@ export class NcmClassificacaoService {
     async login(): Promise<string> {
         const response = await fetch(`${process.env.API_URL}/login`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(
                 {
                     email: process.env.API_USER,
@@ -17,10 +15,8 @@ export class NcmClassificacaoService {
             throw new Error(`Falha ao logar na API: ${response.statusText}`);
         }
 
-        let json = await response.json();
-        let token = json.user.token;
-
-        return token;
+        const json = await response.json();
+        return json.user.token as string;
     }
 
     async novoProcesso(token: string, descricao: string): Promise<string> {
@@ -44,10 +40,8 @@ export class NcmClassificacaoService {
             throw new Error(`Falha ao criar processo na API: ${response.statusText}`);
         }
 
-        let json = await response.json();
-        let processId = json.id;
-
-        return processId;
+        const json = await response.json();
+        return json.id as string;
     }
 
     async sleep(milissegundos: number): Promise<void> {
